@@ -52,3 +52,25 @@ struct CoreContractTests {
         #expect(assessment.context == nil)
     }
 }
+
+@Test func extensionDetailCarriesRawValueAndStatusSeparately() {
+    let raw = Data([0x03, 0x02, 0x05, 0xA0])
+    let detail = CertificateExtensionDetail(
+        id: "2.5.29.15#0", oid: "2.5.29.15", chineseName: "密钥用法", englishName: "Key Usage",
+        critical: true, summary: "数字签名、密钥加密", interpretationStatus: .interpreted,
+        items: [CertificateExtensionItem(
+            id: "bit0", chineseName: "数字签名", englishName: "digitalSignature",
+            displayValue: "已设置", rawValue: nil
+        )],
+        rawValue: raw, rawDERTree: ASN1SummaryNode(
+            tagClass: .universal, tagNumber: 3, constructed: false, totalLength: 4
+        )
+    )
+    let record = CertificateRecord(der: Data("cert".utf8), extensions: [
+        CertificateExtension(oid: "2.5.29.15", critical: true, rawValue: raw)
+    ], extensionDetails: [detail])
+    #expect(record.extensionDetails == [detail])
+    #expect(record.extensionDetails[0].rawValue == record.extensions[0].rawValue)
+    #expect(record.extensionDetails[0].interpretationStatus == .interpreted)
+    #expect(record.extensionDetails[0].rawDERTree?.tagNumber == 3)
+}

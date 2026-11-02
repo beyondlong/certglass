@@ -30,6 +30,27 @@ else
 fi
 
 cp App/CertGlass/Info.plist "$certglass_bundle/Contents/Info.plist"
+
+# Compile the app icon when the full Xcode toolchain is available. The local
+# Command Line Tools image does not ship actool/iconutil reliably, so icon
+# compilation is optional for this SwiftPM packaging path; Xcode builds still
+# consume App/CertGlass/Assets.xcassets through the project file.
+if certglass_actool="$(xcrun --find actool 2>/dev/null)"; then
+    "$certglass_actool" \
+        --compile "$certglass_bundle/Contents/Resources" \
+        --platform macosx \
+        --minimum-deployment-target 13.0 \
+        --app-icon AppIcon \
+        App/CertGlass/Assets.xcassets >/dev/null
+elif command -v iconutil >/dev/null 2>&1; then
+    certglass_iconset="$certglass_root/.build/certglass.iconset"
+    mkdir -p "$certglass_iconset"
+    cp App/CertGlass/Assets.xcassets/AppIcon.appiconset/*.png "$certglass_iconset/"
+    if iconutil -c icns -o "$certglass_bundle/Contents/Resources/CertGlass.icns" "$certglass_iconset" >/dev/null 2>&1; then
+        /usr/bin/plutil -insert CFBundleIconFile -string CertGlass.icns "$certglass_bundle/Contents/Info.plist"
+    fi
+fi
+
 printf 'APPL????' > "$certglass_bundle/Contents/PkgInfo"
 /usr/bin/plutil -lint "$certglass_bundle/Contents/Info.plist"
 /usr/bin/codesign --force --sign - --entitlements App/CertGlass/CertGlass.entitlements "$certglass_bundle"

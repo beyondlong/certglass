@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1560" height="420" viewBox="0 0 1560 420" role="img" aria-labelledby="title desc">
+  <title id="title">CertGlass dark wordmark</title>
+  <desc id="desc">CertGlass icon and light wordmark for dark backgrounds.</desc>
+  <rect width="1560" height="420" fill="#172B5C"/>
+  <image x="0" y="0" width="420" height="420" href="CertGlassIcon.svg" xlink:href="CertGlassIcon.svg"/>
+  <text x="470" y="270" fill="#F5F8FC" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="176" font-weight="700" letter-spacing="-5">CertGlass</text>
+</svg>

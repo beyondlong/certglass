@@ -34,6 +34,11 @@ public enum CertGlassError: Error, Sendable, Equatable, LocalizedError {
     case unsupportedFile
     case readOnlyDocument
     case notImplemented(feature: String)
+    case privateKeyPEM(label: String)
+    case malformedPEMBase64
+    case truncatedPEM
+    case malformedDER
+    case unsupportedContainer
 
     public var errorDescription: String? {
         switch self {
@@ -44,6 +49,11 @@ public enum CertGlassError: Error, Sendable, Equatable, LocalizedError {
         case .unsupportedFile: "无法读取为普通证书文件。"
         case .readOnlyDocument: "CertGlass 以只读方式打开文件，请使用独立导出功能。"
         case .notImplemented(let feature): "\(feature)尚未实现；当前版本为基础脚手架。"
+        case .privateKeyPEM(let label): "文件包含私钥 PEM 块（\(label)）；CertGlass 不处理私钥。"
+        case .malformedPEMBase64: "PEM 块的 Base64 数据无效。"
+        case .truncatedPEM: "PEM 块不完整或被截断。"
+        case .malformedDER: "DER 数据非法或被截断。"
+        case .unsupportedContainer: "不支持的证书容器类型。"
         }
     }
 }

@@ -2,23 +2,45 @@ import CertGlassCore
 import Combine
 import Foundation
 
+/// One certificate file loaded into the window's collection.
+public struct LoadedFileInfo: Identifiable, Equatable, Sendable {
+    public let id: UUID
+    public let displayName: String?
+    public let byteCount: Int
+
+    public init(id: UUID, displayName: String?, byteCount: Int) {
+        self.id = id
+        self.displayName = displayName
+        self.byteCount = byteCount
+    }
+}
+
 @MainActor
 public final class InspectorStore: ObservableObject {
     @Published public private(set) var certificates: [CertificateRecord] = []
+    @Published public private(set) var loadedFiles: [LoadedFileInfo] = []
     @Published public private(set) var selectedCertificateID: CertificateID?
     @Published public private(set) var chainReport: ChainReport?
     @Published public private(set) var assessment = TrustAssessment()
     @Published public private(set) var documentError: Diagnostic?
+    @Published public private(set) var exportError: Diagnostic?
     @Published public private(set) var isLoadingDocument = false
 
     public var selectedCertificate: CertificateRecord? {
         certificates.first { $0.id == selectedCertificateID }
     }
 
+    /// Source file of the selected certificate, for the window header.
+    public var selectedFileInfo: LoadedFileInfo? {
+        guard let id = selectedCertificateID.flatMap({ fileIDByCertificateID[$0] }) else { return nil }
+        return loadedFiles.first { $0.id == id }
+    }
+
     private let services: InspectorServices
     private let limits: InputLimits
     private let now: @Sendable () -> Date
     private var operationID = UUID()
+    private var fileIDByCertificateID: [CertificateID: UUID] = [:]
 
     public init(
         services: InspectorServices, limits: InputLimits = .default,
@@ -29,14 +51,16 @@ public final class InspectorStore: ObservableObject {
         self.now = now
     }
 
+    /// Adds one file's certificates to the window collection. Certificates are
+    /// deduplicated across all loaded files by DER SHA-256 identity; an opened
+    /// file whose certificates all already exist does not disturb the current
+    /// selection. A failed open keeps the existing collection and reports a
+    /// document error.
     public func open(_ input: DocumentInput) async {
         let operation = UUID()
         operationID = operation
-        certificates = []
-        selectedCertificateID = nil
-        chainReport = nil
-        assessment = TrustAssessment()
         documentError = nil
+        exportError = nil
         isLoadingDocument = true
         defer {
             if operationID == operation { isLoadingDocument = false }
@@ -52,24 +76,46 @@ public final class InspectorStore: ObservableObject {
                 throw CertGlassError.tooManyCertificates(maximumCount: limits.maximumCertificates)
             }
 
-            var records: [CertificateRecord] = []
-            var seen: Set<CertificateID> = []
+            var parsed: [CertificateRecord] = []
+            var seenInFile: Set<CertificateID> = []
             for der in container.certificatesDER {
                 let record = try await services.certificateParser.parse(der: der)
                 try Task.checkCancellation()
                 guard operationID == operation else { return }
-                if seen.insert(record.id).inserted { records.append(record) }
+                if seenInFile.insert(record.id).inserted { parsed.append(record) }
             }
-            certificates = records
+
+            let file = LoadedFileInfo(
+                id: UUID(), displayName: checkedInput.displayName, byteCount: checkedInput.data.count
+            )
+            var knownIDs = Set(certificates.map(\.id))
+            var added: [CertificateRecord] = []
+            for record in parsed where knownIDs.insert(record.id).inserted {
+                added.append(record)
+            }
+            certificates += added
+            loadedFiles.append(file)
+            for record in added { fileIDByCertificateID[record.id] = file.id }
             isLoadingDocument = false
-            if let selected = records.first(where: { $0.caStatus == .endEntity }) ?? records.first {
-                selectedCertificateID = selected.id
-                await evaluate(selected, operation: operation)
-            }
+
+            guard let selected = added.first(where: { $0.caStatus == .endEntity }) ?? added.first else { return }
+            selectedCertificateID = selected.id
+            await evaluate(selected, operation: operation)
         } catch is CancellationError {
-            // A cancelled or superseded view must not publish an error for a new document.
+            // A cancelled or superseded open must not publish an error.
         } catch {
             guard operationID == operation else { return }
+            documentError = diagnostic(for: error, fallbackCode: .invalidInput)
+        }
+    }
+
+    /// Reads a file URL (open panel, Finder open-with or drag & drop) and adds
+    /// it to the collection.
+    public func openFile(at url: URL) async {
+        do {
+            let data = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: url) }.value
+            await open(try DocumentInput(data: data, displayName: url.lastPathComponent, limits: limits))
+        } catch {
             documentError = diagnostic(for: error, fallbackCode: .invalidInput)
         }
     }
@@ -80,6 +126,31 @@ public final class InspectorStore: ObservableObject {
         operationID = operation
         selectedCertificateID = id
         await evaluate(certificate, operation: operation)
+    }
+
+    /// Opens the standard system certificate viewer for the record (read-only).
+    public func showCertificateViewer(for id: CertificateID) {
+        guard let certificate = certificates.first(where: { $0.id == id }) else { return }
+        services.certificateViewer.showCertificate(der: certificate.der)
+    }
+
+    /// Encodes the currently selected certificate; writing the file belongs to the caller.
+    public func exportSelectedCertificate(as format: CertificateExportFormat) async -> Data? {
+        exportError = nil
+        guard let certificate = selectedCertificate else { return nil }
+        do {
+            return try await services.certificateExporter.encode(certificate, as: format)
+        } catch {
+            let nsError = error as NSError
+            exportError = Diagnostic(
+                code: .exportFailed, source: .application, severity: .error,
+                message: error.localizedDescription,
+                systemError: SystemErrorDetail(
+                    domain: nsError.domain, code: nsError.code, description: nsError.localizedDescription
+                )
+            )
+            return nil
+        }
     }
 
     private func evaluate(_ certificate: CertificateRecord, operation: UUID) async {
@@ -110,15 +181,21 @@ public final class InspectorStore: ObservableObject {
         }
     }
 
+    public func clearExportError() { exportError = nil }
+
+    public func reportExportFailure(_ diagnostic: Diagnostic) { exportError = diagnostic }
+
     private func diagnostic(for error: any Error, fallbackCode: DiagnosticCode) -> Diagnostic {
         let nsError = error as NSError
         let code: DiagnosticCode
-        if case .notImplemented = error as? CertGlassError {
-            code = .notImplemented
-        } else if error is CertGlassError {
-            code = .invalidInput
-        } else {
-            code = fallbackCode
+        switch error as? CertGlassError {
+        case .notImplemented: code = .notImplemented
+        case .privateKeyPEM: code = .privateKey
+        case .malformedPEMBase64: code = .malformedBase64
+        case .truncatedPEM: code = .truncatedPEM
+        case .malformedDER: code = .malformedDER
+        case .unsupportedContainer: code = .unsupportedContainer
+        case .some, .none: code = fallbackCode
         }
         return Diagnostic(
             code: code, source: .application, severity: .error,

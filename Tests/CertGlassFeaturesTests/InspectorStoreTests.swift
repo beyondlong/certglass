@@ -23,7 +23,7 @@ struct InspectorStoreTests {
         #expect(requests.first?.selectedCertificateDER == leafDER)
         #expect(requests.first?.additionalCertificatesDER == [firstDER])
         #expect(requests.first?.verificationTime == fixedTime)
-        #expect(requests.first?.policy == .basicX509WithCachedRevocation)
+        #expect(requests.first?.policy == .basicX509)
     }
 
     @Test func trustExecutionFailurePreservesParsedCertificates() async throws {
@@ -41,13 +41,13 @@ struct InspectorStoreTests {
         #expect(store.documentError == nil)
     }
 
-    @Test func scaffoldReportsUnimplementedWithoutFakeCertificates() async throws {
+    @Test func invalidDERReportsDocumentErrorWithoutFakeCertificates() async throws {
         let store = InspectorStore(services: ScaffoldServices.make())
         await store.open(try DocumentInput(data: Data([0x30, 0])))
         #expect(store.certificates.isEmpty)
         #expect(store.chainReport == nil)
         #expect(store.assessment.systemConclusion == .undetermined)
-        #expect(store.documentError?.code == .notImplemented)
+        #expect(store.documentError?.code == .malformedDER)
         #expect(!store.isLoadingDocument)
     }
 
@@ -83,7 +83,7 @@ struct InspectorStoreTests {
             containerDecoder: FixedDecoder(blocks: [Data([1])]),
             certificateParser: FailingParser(),
             trustEvaluator: RecordingEvaluator(result: .success(ChainReport())),
-            certificateExporter: UnimplementedCertificateExporter()
+            certificateExporter: StandardCertificateExporter(), certificateViewer: StandardCertificateViewer()
         ))
         await store.open(try DocumentInput(data: Data([9])))
         #expect(store.documentError?.code == .invalidInput)
@@ -111,13 +111,52 @@ struct InspectorStoreTests {
         #expect(store.assessment.systemConclusion == .untrusted)
     }
 
+    @Test func openingMoreFilesAccumulatesIntoOneCollection() async throws {
+        let store = InspectorStore(services: InspectorServices(
+            containerDecoder: MultiFileDecoder(files: [
+                Data([9]): [Data([1]), Data([2])],
+                Data([8]): [Data([2]), Data([3])]
+            ]),
+            certificateParser: FixtureParser(),
+            trustEvaluator: RecordingEvaluator(result: .success(ChainReport())),
+            certificateExporter: StandardCertificateExporter(), certificateViewer: StandardCertificateViewer()
+        ))
+        await store.open(try DocumentInput(data: Data([9])))
+        await store.open(try DocumentInput(data: Data([8])))
+
+        #expect(store.certificates.map(\.der) == [Data([1]), Data([2]), Data([3])])
+        #expect(store.loadedFiles.count == 2)
+        #expect(store.selectedCertificate?.der == Data([3]))
+        #expect(store.selectedFileInfo?.byteCount == 1)
+        #expect(store.documentError == nil)
+    }
+
+    @Test func failedOpenKeepsExistingCollection() async throws {
+        let store = InspectorStore(services: InspectorServices(
+            containerDecoder: MultiFileDecoder(files: [
+                Data([9]): [Data([1])],
+                Data([8]): []
+            ]),
+            certificateParser: FixtureParser(),
+            trustEvaluator: RecordingEvaluator(result: .success(ChainReport())),
+            certificateExporter: StandardCertificateExporter(), certificateViewer: StandardCertificateViewer()
+        ))
+        await store.open(try DocumentInput(data: Data([9])))
+        await store.open(try DocumentInput(data: Data([8])))
+
+        #expect(store.documentError?.code == .invalidInput)
+        #expect(store.certificates.map(\.der) == [Data([1])])
+        #expect(store.loadedFiles.count == 1)
+        #expect(store.selectedCertificate?.der == Data([1]))
+    }
+
     private func makeStore(
         blocks: [Data], evaluator: any TrustEvaluating,
         limits: InputLimits = .default, now: @escaping @Sendable () -> Date = { Date() }
     ) -> InspectorStore {
         InspectorStore(services: InspectorServices(
             containerDecoder: FixedDecoder(blocks: blocks), certificateParser: FixtureParser(),
-            trustEvaluator: evaluator, certificateExporter: UnimplementedCertificateExporter()
+            trustEvaluator: evaluator, certificateExporter: StandardCertificateExporter(), certificateViewer: StandardCertificateViewer()
         ), limits: limits, now: now)
     }
 }
@@ -126,6 +165,13 @@ private struct FixedDecoder: ContainerDecoding {
     let blocks: [Data]
     func decode(_ input: DocumentInput) async throws -> DecodedContainer {
         DecodedContainer(format: .pem, certificatesDER: blocks)
+    }
+}
+
+private struct MultiFileDecoder: ContainerDecoding {
+    let files: [Data: [Data]]
+    func decode(_ input: DocumentInput) async throws -> DecodedContainer {
+        DecodedContainer(format: .pem, certificatesDER: files[input.data] ?? [])
     }
 }
 

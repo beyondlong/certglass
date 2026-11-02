@@ -95,6 +95,8 @@ public struct CertificateRecord: Identifiable, Sendable, Equatable {
     public let publicKeyBytes: Data?
     public let signatureBytes: Data?
     public let extensions: [CertificateExtension]
+    /// Structured interpretation, one entry per extension in encounter order.
+    public let extensionDetails: [CertificateExtensionDetail]
     public let fields: [CertificateField]
     public let parseStatus: ParseStatus
     public let caStatus: CAStatus
@@ -105,7 +107,8 @@ public struct CertificateRecord: Identifiable, Sendable, Equatable {
         serialNumber: Data? = nil, notValidBefore: Date? = nil, notValidAfter: Date? = nil,
         publicKeyAlgorithm: AlgorithmIdentifier? = nil, signatureAlgorithm: AlgorithmIdentifier? = nil,
         publicKeyBytes: Data? = nil, signatureBytes: Data? = nil,
-        extensions: [CertificateExtension] = [], fields: [CertificateField] = [],
+        extensions: [CertificateExtension] = [], extensionDetails: [CertificateExtensionDetail] = [],
+        fields: [CertificateField] = [],
         parseStatus: ParseStatus = .partial, caStatus: CAStatus = .unknown,
         diagnostics: [Diagnostic] = []
     ) {
@@ -121,6 +124,7 @@ public struct CertificateRecord: Identifiable, Sendable, Equatable {
         self.publicKeyBytes = publicKeyBytes
         self.signatureBytes = signatureBytes
         self.extensions = extensions
+        self.extensionDetails = extensionDetails
         self.fields = fields
         self.parseStatus = parseStatus
         self.caStatus = caStatus

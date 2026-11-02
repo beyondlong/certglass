@@ -3,25 +3,23 @@ import Foundation
 public enum EvaluationExecutionState: String, Sendable { case notStarted, running, completed, failed }
 public enum SystemTrustConclusion: String, Sendable { case trusted, untrusted, undetermined }
 public enum EvidenceState: String, Sendable { case yes, no, unknown }
-public enum TrustPolicy: String, Sendable { case basicX509WithCachedRevocation }
+public enum TrustPolicy: String, Sendable { case basicX509 }
 
 public struct TrustContext: Sendable, Equatable {
     public let verificationTime: Date
     public let policy: TrustPolicy
     /// nil means the adapter has not confirmed the effective setting.
     public let networkFetchDisabled: Bool?
-    public let revocationNetworkAccessDisabled: Bool?
     public let operatingSystemVersion: String
 
     public init(
-        verificationTime: Date, policy: TrustPolicy = .basicX509WithCachedRevocation,
-        networkFetchDisabled: Bool? = nil, revocationNetworkAccessDisabled: Bool? = nil,
+        verificationTime: Date, policy: TrustPolicy = .basicX509,
+        networkFetchDisabled: Bool? = nil,
         operatingSystemVersion: String = ProcessInfo.processInfo.operatingSystemVersionString
     ) {
         self.verificationTime = verificationTime
         self.policy = policy
         self.networkFetchDisabled = networkFetchDisabled
-        self.revocationNetworkAccessDisabled = revocationNetworkAccessDisabled
         self.operatingSystemVersion = operatingSystemVersion
     }
 }
@@ -66,7 +64,7 @@ public struct TrustRequest: Sendable, Equatable {
     public let additionalCertificatesDER: [Data]
     public let verificationTime: Date
     /// Production requests expose no online mode or custom trust anchors.
-    public let policy: TrustPolicy = .basicX509WithCachedRevocation
+    public let policy: TrustPolicy = .basicX509
 
     public init(selectedCertificateDER: Data, additionalCertificatesDER: [Data], verificationTime: Date) {
         self.selectedCertificateDER = selectedCertificateDER

@@ -1,6 +1,10 @@
 import Foundation
 
-public enum ContainerFormat: String, Sendable { case der, pem, pkcs7DER, pkcs7PEM }
+public enum ContainerFormat: String, Sendable {
+    case der, pem, pkcs7DER, pkcs7PEM
+    /// Header-less Base64 text (common for Windows exports and some CA portals).
+    case base64DER, base64PKCS7
+}
 
 public struct DecodedContainer: Sendable, Equatable {
     public let format: ContainerFormat
@@ -34,19 +38,28 @@ public protocol CertificateExporting: Sendable {
     func encode(_ certificate: CertificateRecord, as format: CertificateExportFormat) async throws -> Data
 }
 
+/// Shows the standard system certificate viewer (the panel used by Keychain
+/// Access) for raw DER. Display only; never installs or modifies keychain items.
+public protocol CertificateViewing: Sendable {
+    @MainActor func showCertificate(der: Data)
+}
+
 public struct InspectorServices: Sendable {
     public let containerDecoder: any ContainerDecoding
     public let certificateParser: any CertificateParsing
     public let trustEvaluator: any TrustEvaluating
     public let certificateExporter: any CertificateExporting
+    public let certificateViewer: any CertificateViewing
 
     public init(
         containerDecoder: any ContainerDecoding, certificateParser: any CertificateParsing,
-        trustEvaluator: any TrustEvaluating, certificateExporter: any CertificateExporting
+        trustEvaluator: any TrustEvaluating, certificateExporter: any CertificateExporting,
+        certificateViewer: any CertificateViewing
     ) {
         self.containerDecoder = containerDecoder
         self.certificateParser = certificateParser
         self.trustEvaluator = trustEvaluator
         self.certificateExporter = certificateExporter
+        self.certificateViewer = certificateViewer
     }
 }

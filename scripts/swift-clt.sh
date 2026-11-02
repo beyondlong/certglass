@@ -17,6 +17,11 @@ if [[ ! -x "$certglass_developer/usr/bin/swift-$certglass_command" || ! -d "$cer
 fi
 
 export SDKROOT="$certglass_sdk"
+# This CLT install is missing the libc++ headers; the SDK ships a complete set.
+# Route C++ compilation to the SDK headers only when the toolchain copy is absent.
+if [[ -d "$certglass_sdk/usr/include/c++/v1" && ! -e "$certglass_developer/usr/include/c++/v1/memory" ]]; then
+    export CPLUS_INCLUDE_PATH="$certglass_sdk/usr/include/c++/v1${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
+fi
 export CLANG_MODULE_CACHE_PATH="$certglass_root/.build/module-cache"
 export DYLD_FRAMEWORK_PATH="$certglass_pm:$certglass_pm/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/Frameworks:$certglass_frameworks${DYLD_FRAMEWORK_PATH:+:$DYLD_FRAMEWORK_PATH}"
 certglass_options=(

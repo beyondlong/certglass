@@ -6,6 +6,8 @@ public enum DiagnosticCode: String, Sendable {
     case notImplemented, partialParse, expired, notYetValid, unknownRoot, incompleteChain
     case untrustedSelfSigned, invalidSignature, unsupportedAlgorithm, unhandledCriticalExtension
     case revoked, systemError, evaluationFailed, invalidInput
+    case privateKey, malformedBase64, truncatedPEM, malformedDER, unsupportedContainer
+    case exportFailed
 }
 
 public struct SystemErrorDetail: Sendable, Equatable {
