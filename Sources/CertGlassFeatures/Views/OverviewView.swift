@@ -45,7 +45,7 @@ struct OverviewView: View {
                 infoRow("序列号", serial.hexString, monospaced: true)
             }
             if let before = certificate.notValidBefore, let after = certificate.notValidAfter {
-                infoRow("有效期", "\(Self.formatter.string(from: before)) 至 \(Self.formatter.string(from: after))")
+                infoRow("有效期", "\(CertificateDateFormatting.string(from: before)) 至 \(CertificateDateFormatting.string(from: after))")
             }
             infoRow("SHA-256", certificate.id.sha256, monospaced: true)
         }
@@ -94,7 +94,7 @@ struct OverviewView: View {
         if let context = assessment.context {
             DisclosureGroup("评估详情") {
                 VStack(alignment: .leading, spacing: 6) {
-                    infoRow("评估时间", Self.formatter.string(from: context.verificationTime))
+                    infoRow("评估时间", CertificateDateFormatting.string(from: context.verificationTime))
                     infoRow("策略", "通用 X.509；不验证吊销列表")
                     Text("不验证吊销列表；结论只反映本机 X.509 链验证与信任锚，特定用途是否受信任仍需单独判断。")
                         .font(.caption)
@@ -141,10 +141,4 @@ struct OverviewView: View {
         }
     }
 
-    static let formatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .medium
-        return formatter
-    }()
 }

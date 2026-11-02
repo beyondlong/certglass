@@ -1,5 +1,5 @@
 import CertGlassCore
-import CertGlassInfrastructure
+@testable import CertGlassInfrastructure
 import Foundation
 import Security
 import Testing
@@ -31,6 +31,35 @@ struct TrustEvaluatorTests {
             additionalCertificatesDER: try additional.map { try der($0) },
             verificationTime: fixedTime
         )
+    }
+
+    @Test func suppliedPathBuilderOrdersLeafToRootForUnsupportedAlgorithms() {
+        let rootName = DistinguishedName(relativeDistinguishedNames: [], displayValue: "CN=Root")
+        let intermediateName = DistinguishedName(
+            relativeDistinguishedNames: [], displayValue: "CN=Intermediate"
+        )
+        let leafName = DistinguishedName(relativeDistinguishedNames: [], displayValue: "CN=Leaf")
+        let root = CertificateRecord(
+            der: Data([0x03]), subject: rootName, issuer: rootName,
+            caStatus: .certificateAuthority
+        )
+        let intermediate = CertificateRecord(
+            der: Data([0x02]), subject: intermediateName, issuer: rootName,
+            caStatus: .certificateAuthority
+        )
+        let leaf = CertificateRecord(
+            der: Data([0x01]), subject: leafName, issuer: intermediateName,
+            caStatus: .endEntity
+        )
+
+        let path = StandardTrustEvaluator.suppliedPath(
+            selected: leaf, candidates: [root, leaf, intermediate]
+        )
+        #expect(path.map(\.id) == [leaf.id, intermediate.id, root.id])
+        let preferred = StandardTrustEvaluator.preferredPath(
+            systemRecords: [leaf], suppliedRecords: [leaf, root, intermediate]
+        )
+        #expect(preferred.map(\.id) == [leaf.id, intermediate.id, root.id])
     }
 
     @Test func completeChainWithIsolatedAnchorIsTrusted() async throws {

@@ -112,10 +112,22 @@ public struct StandardTrustEvaluator: TrustEvaluating {
             chainCertificates = chain.compactMap { SecCertificateCopyData($0) as Data? }
         }
 
-        var records: [CertificateRecord] = []
+        var systemRecords: [CertificateRecord] = []
         for der in chainCertificates {
-            records.append((try? await parser.parse(der: der)) ?? CertificateRecord(der: der))
+            systemRecords.append((try? await parser.parse(der: der)) ?? CertificateRecord(der: der))
         }
+
+        // Security.framework may be unable to build a path for algorithms it
+        // cannot evaluate (notably some SM2 chains), even when the PKCS#7
+        // file contains the complete certificate chain. Use only the
+        // certificates supplied in the request as a structural fallback so
+        // the path view can still show the real leaf-to-root chain. This does
+        // not turn the fallback into a trust conclusion.
+        var suppliedRecords: [CertificateRecord] = []
+        for der in [request.selectedCertificateDER] + request.additionalCertificatesDER {
+            suppliedRecords.append((try? await parser.parse(der: der)) ?? CertificateRecord(der: der))
+        }
+        let records = Self.preferredPath(systemRecords: systemRecords, suppliedRecords: suppliedRecords)
 
         var diagnostics: [Diagnostic] = []
         if !outcome.trusted, let error = outcome.error {
@@ -159,6 +171,33 @@ public struct StandardTrustEvaluator: TrustEvaluating {
             certificates: records, assessment: assessment,
             pathIsComplete: pathIsComplete, reachesTrustedAnchor: reachesTrustedAnchor
         )
+    }
+
+    /// Builds a path from the actual certificates supplied by the file, using
+    /// issuer/subject equality only. It never invents a parent or treats this
+    /// structural path as a successful system trust evaluation.
+    static func preferredPath(
+        systemRecords: [CertificateRecord], suppliedRecords: [CertificateRecord]
+    ) -> [CertificateRecord] {
+        guard let selected = suppliedRecords.first else { return systemRecords }
+        let suppliedPath = suppliedPath(selected: selected, candidates: suppliedRecords)
+        return suppliedPath.count > systemRecords.count ? suppliedPath : systemRecords
+    }
+
+    static func suppliedPath(
+        selected: CertificateRecord, candidates: [CertificateRecord]
+    ) -> [CertificateRecord] {
+        var path = [selected]
+        var used = Set([selected.id])
+        while let issuer = path.last?.issuer,
+              let parent = candidates.first(where: {
+                  !used.contains($0.id) && $0.subject == issuer
+              }) {
+            path.append(parent)
+            used.insert(parent.id)
+            if parent.subject == parent.issuer { break }
+        }
+        return path
     }
 
     /// Security reports not-yet-valid certificates with the same OSStatus as

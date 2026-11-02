@@ -31,6 +31,18 @@ struct CertificateParserTests {
         #expect(record.subject?.displayValue == record.issuer?.displayValue)
     }
 
+    @Test func validityFieldsUseReadableUTCDateTime() async throws {
+        let record = try await parser.parse(der: try fixture("cg-sm2.cer"))
+        let before = try #require(record.fields.first { $0.id == "notValidBefore" })
+        let after = try #require(record.fields.first { $0.id == "notValidAfter" })
+        #expect(before.displayValue == CertificateDateFormatting.string(from: try #require(record.notValidBefore)))
+        #expect(after.displayValue == CertificateDateFormatting.string(from: try #require(record.notValidAfter)))
+        #expect(before.displayValue.range(of: #"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$"#, options: .regularExpression) != nil)
+        #expect(after.displayValue.range(of: #"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$"#, options: .regularExpression) != nil)
+        #expect(!before.displayValue.contains("T"))
+        #expect(!after.displayValue.hasSuffix("Z"))
+    }
+
     @Test func leafCertificateIsRecognizedAsEndEntity() async throws {
         let record = try await parser.parse(der: try fixture("leaf.cer"))
         #expect(record.caStatus == .endEntity)

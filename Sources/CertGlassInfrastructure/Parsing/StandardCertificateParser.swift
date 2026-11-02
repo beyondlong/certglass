@@ -238,7 +238,6 @@ private struct StructuralWalk {
 
     static func fields(for walked: StructuralWalk, extensionSummaries: [String]) -> [CertificateField] {
         var fields: [CertificateField] = []
-        let formatter = ISO8601DateFormatter()
         if let version = walked.version {
             fields.append(CertificateField(
                 id: "version", chineseName: "版本", englishName: "Version",
@@ -266,13 +265,13 @@ private struct StructuralWalk {
         if let notBefore = walked.notValidBefore {
             fields.append(CertificateField(
                 id: "notValidBefore", chineseName: "生效时间", englishName: "Not Valid Before",
-                displayValue: formatter.string(from: notBefore)
+                displayValue: CertificateDateFormatting.string(from: notBefore)
             ))
         }
         if let notAfter = walked.notValidAfter {
             fields.append(CertificateField(
                 id: "notValidAfter", chineseName: "失效时间", englishName: "Not Valid After",
-                displayValue: formatter.string(from: notAfter)
+                displayValue: CertificateDateFormatting.string(from: notAfter)
             ))
         }
         if let signatureAlgorithm = walked.signatureAlgorithm {

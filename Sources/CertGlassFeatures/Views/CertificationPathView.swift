@@ -112,7 +112,7 @@ struct CertificationPathView: View {
                 }
                 if let before = certificate.notValidBefore, let after = certificate.notValidAfter {
                     LabeledContent("有效期") {
-                        Text("\(Self.formatter.string(from: before)) 至 \(Self.formatter.string(from: after))")
+                        Text("\(CertificateDateFormatting.string(from: before)) 至 \(CertificateDateFormatting.string(from: after))")
                     }
                 }
                 LabeledContent("解析状态") {
@@ -165,12 +165,6 @@ struct CertificationPathView: View {
         case .unknown: "无法确定"
         }
     }
-    static let formatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
 }
 
 /// 系统返回的路径叶子在前；展示按 Windows 习惯自根向下逐级缩进。
