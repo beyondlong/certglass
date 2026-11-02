@@ -40,6 +40,14 @@ scripts/build-app.sh release universal
 
 最后一个命令生成 `build/release-universal/CertGlass.app`，包含 Apple Silicon 和 Intel 两个架构，并使用本地 ad-hoc 签名。它用于本机开发验证，不是 Developer ID 签名或公证发行包。可用 `scripts/build-app.sh debug native` 生成当前架构的 Debug 应用。
 
+生成两个独立架构的发布安装包：
+
+```bash
+CERTGLASS_SWIFT="$PWD/scripts/swift-clt.sh" scripts/package-release.sh 0.1.2
+```
+
+脚本会生成 arm64 和 x86_64 的 DMG、ZIP 及 SHA-256 校验文件。DMG 内含 `CertGlass.app` 和 `Applications` 快捷方式，打开后将应用拖入该文件夹即可完成安装。
+
 Xcode 应用目标构建：
 
 ```bash
