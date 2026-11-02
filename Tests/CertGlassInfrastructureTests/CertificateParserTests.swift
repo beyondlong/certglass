@@ -87,6 +87,53 @@ struct CertificateParserTests {
         #expect(record.parseStatus == .complete || record.parseStatus == .partial)
     }
 
+    @Test func postQuantumSignatureOIDsUseCanonicalDisplayNames() async throws {
+        let algorithms: [(oid: String, displayName: String)] = [
+            ("2.16.840.1.101.3.4.3.17", "ML-DSA-44"),
+            ("2.16.840.1.101.3.4.3.18", "ML-DSA-65"),
+            ("2.16.840.1.101.3.4.3.19", "ML-DSA-87"),
+            ("2.16.840.1.101.3.4.3.20", "SLH-DSA-SHA2-128s"),
+            ("2.16.840.1.101.3.4.3.21", "SLH-DSA-SHA2-128f"),
+            ("2.16.840.1.101.3.4.3.22", "SLH-DSA-SHA2-192s"),
+            ("2.16.840.1.101.3.4.3.23", "SLH-DSA-SHA2-192f"),
+            ("2.16.840.1.101.3.4.3.24", "SLH-DSA-SHA2-256s"),
+            ("2.16.840.1.101.3.4.3.25", "SLH-DSA-SHA2-256f"),
+            ("2.16.840.1.101.3.4.3.26", "SLH-DSA-SHAKE-128s"),
+            ("2.16.840.1.101.3.4.3.27", "SLH-DSA-SHAKE-128f"),
+            ("2.16.840.1.101.3.4.3.28", "SLH-DSA-SHAKE-192s"),
+            ("2.16.840.1.101.3.4.3.29", "SLH-DSA-SHAKE-192f"),
+            ("2.16.840.1.101.3.4.3.30", "SLH-DSA-SHAKE-256s"),
+            ("2.16.840.1.101.3.4.3.31", "SLH-DSA-SHAKE-256f"),
+            ("1.3.9999.3.11", "Falcon-512"),
+            ("1.3.9999.3.14", "Falcon-1024")
+        ]
+
+        for algorithm in algorithms {
+            let der = Self.syntheticCertificate(publicKeyAlgorithmOID: Self.oidContent(algorithm.oid))
+            let record = try await parser.parse(der: der)
+            let publicKeyField = try #require(record.fields.first { $0.id == "publicKeyAlgorithm" })
+            #expect(publicKeyField.oid == algorithm.oid)
+            #expect(publicKeyField.displayValue == algorithm.displayName)
+            // Post-quantum keys show raw byte length; the synthetic SPKI key is 2 bytes.
+            let publicKeyDescription = try #require(record.fields.first { $0.id == "publicKey" })
+            #expect(publicKeyDescription.displayValue == "\(algorithm.displayName) (2 字节)")
+        }
+    }
+
+    @Test func headerlessMLDSA44PKCS7FixtureDisplaysAlgorithmNames() async throws {
+        let input = try DocumentInput(data: fixture("HardSecondMLDSA44.p7b"))
+        let container = try await StandardContainerDecoder().decode(input)
+        #expect(container.format == .base64PKCS7)
+        #expect(container.certificatesDER.count == 2)
+
+        let record = try await parser.parse(der: try #require(container.certificatesDER.first))
+        #expect(record.signatureAlgorithm?.oid == "2.16.840.1.101.3.4.3.17")
+        #expect(record.publicKeyAlgorithm?.oid == "2.16.840.1.101.3.4.3.17")
+        #expect(record.fields.first { $0.id == "signatureAlgorithm" }?.displayValue == "ML-DSA-44")
+        #expect(record.fields.first { $0.id == "publicKeyAlgorithm" }?.displayValue == "ML-DSA-44")
+            #expect(record.fields.first { $0.id == "publicKey" }?.displayValue == "ML-DSA-44 (1312 字节)")
+    }
+
     @Test func sm2DegradesToPartialWithoutLosingFields() async throws {
         let der = try fixture("cg-sm2.cer")
         let record = try await parser.parse(der: der)
@@ -192,5 +239,22 @@ struct CertificateParserTests {
         let signatureAlgorithm = tlv(0x30, oidDER([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B]))
         let signature = tlv(0x03, Data([0x00, 0xAA, 0xBB]))
         return tlv(0x30, tbs + signatureAlgorithm + signature)
+    }
+
+    private static func oidContent(_ dottedOID: String) -> [UInt8] {
+        let components = dottedOID.split(separator: ".").compactMap { Int($0) }
+        precondition(components.count >= 2)
+        var content = [UInt8(components[0] * 40 + components[1])]
+        for component in components.dropFirst(2) {
+            var value = component
+            var encoded = [UInt8(value & 0x7F)]
+            value >>= 7
+            while value > 0 {
+                encoded.append(UInt8(value & 0x7F) | 0x80)
+                value >>= 7
+            }
+            content.append(contentsOf: encoded.reversed())
+        }
+        return content
     }
 }

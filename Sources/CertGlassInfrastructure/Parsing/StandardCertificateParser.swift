@@ -345,6 +345,15 @@ private struct StructuralWalk {
         case "1.3.101.110": return "X25519 (256 Bits)"
         case "1.3.101.113": return "Ed448 (456 Bits)"
         case "1.3.101.111": return "X448 (448 Bits)"
+        // Post-quantum keys are raw byte strings, too long to read in bits.
+        case "2.16.840.1.101.3.4.3.17", "2.16.840.1.101.3.4.3.18", "2.16.840.1.101.3.4.3.19",
+             "2.16.840.1.101.3.4.3.20", "2.16.840.1.101.3.4.3.21", "2.16.840.1.101.3.4.3.22",
+             "2.16.840.1.101.3.4.3.23", "2.16.840.1.101.3.4.3.24", "2.16.840.1.101.3.4.3.25",
+             "2.16.840.1.101.3.4.3.26", "2.16.840.1.101.3.4.3.27", "2.16.840.1.101.3.4.3.28",
+             "2.16.840.1.101.3.4.3.29", "2.16.840.1.101.3.4.3.30", "2.16.840.1.101.3.4.3.31",
+             "1.3.9999.3.11", "1.3.9999.3.14":
+            let name = OIDNames.algorithmName(oid: algorithm.oid, parametersDER: algorithm.parametersDER)
+            return "\(name) (\(bytes.count) 字节)"
         default:
             return OIDNames.algorithmName(oid: algorithm.oid, parametersDER: algorithm.parametersDER)
         }

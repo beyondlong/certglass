@@ -50,7 +50,32 @@ enum OIDNames {
         "1.3.101.112": "Ed25519",
         "1.3.101.113": "Ed448",
         "1.2.156.10197.1.501": "SM2 with SM3",
-        "1.2.156.10197.1.504": "SM2 with SM3 (key exchange)"
+        "1.2.156.10197.1.504": "SM2 with SM3 (key exchange)",
+
+        // NIST CSOR pure ML-DSA (FIPS 204) identifiers.
+        "2.16.840.1.101.3.4.3.17": "ML-DSA-44",
+        "2.16.840.1.101.3.4.3.18": "ML-DSA-65",
+        "2.16.840.1.101.3.4.3.19": "ML-DSA-87",
+
+        // NIST CSOR pure SLH-DSA (FIPS 205) identifiers. The suffix denotes
+        // the parameter-set variant: s (small) or f (fast).
+        "2.16.840.1.101.3.4.3.20": "SLH-DSA-SHA2-128s",
+        "2.16.840.1.101.3.4.3.21": "SLH-DSA-SHA2-128f",
+        "2.16.840.1.101.3.4.3.22": "SLH-DSA-SHA2-192s",
+        "2.16.840.1.101.3.4.3.23": "SLH-DSA-SHA2-192f",
+        "2.16.840.1.101.3.4.3.24": "SLH-DSA-SHA2-256s",
+        "2.16.840.1.101.3.4.3.25": "SLH-DSA-SHA2-256f",
+        "2.16.840.1.101.3.4.3.26": "SLH-DSA-SHAKE-128s",
+        "2.16.840.1.101.3.4.3.27": "SLH-DSA-SHAKE-128f",
+        "2.16.840.1.101.3.4.3.28": "SLH-DSA-SHAKE-192s",
+        "2.16.840.1.101.3.4.3.29": "SLH-DSA-SHAKE-192f",
+        "2.16.840.1.101.3.4.3.30": "SLH-DSA-SHAKE-256s",
+        "2.16.840.1.101.3.4.3.31": "SLH-DSA-SHAKE-256f",
+
+        // Open Quantum Safe Falcon identifiers. These are not in the NIST
+        // CSOR arc; retain the OID in the field model for interoperability.
+        "1.3.9999.3.11": "Falcon-512",
+        "1.3.9999.3.14": "Falcon-1024"
     ]
 
     static let curveParameters: [String: String] = [
