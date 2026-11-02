@@ -181,7 +181,15 @@ public struct StandardTrustEvaluator: TrustEvaluating {
     ) -> [CertificateRecord] {
         guard let selected = suppliedRecords.first else { return systemRecords }
         let suppliedPath = suppliedPath(selected: selected, candidates: suppliedRecords)
-        return suppliedPath.count > systemRecords.count ? suppliedPath : systemRecords
+        guard suppliedPath.count > 1 else { return systemRecords }
+        guard !systemRecords.isEmpty else { return suppliedPath }
+
+        let systemComplete = isCompletePath(systemRecords)
+        let suppliedComplete = isCompletePath(suppliedPath)
+        if suppliedPath.count > systemRecords.count || (!systemComplete && suppliedComplete) {
+            return suppliedPath
+        }
+        return systemRecords
     }
 
     static func suppliedPath(
@@ -191,13 +199,29 @@ public struct StandardTrustEvaluator: TrustEvaluating {
         var used = Set([selected.id])
         while let issuer = path.last?.issuer,
               let parent = candidates.first(where: {
-                  !used.contains($0.id) && $0.subject == issuer
+                  !used.contains($0.id) && namesMatch($0.subject, issuer)
               }) {
             path.append(parent)
             used.insert(parent.id)
             if parent.subject == parent.issuer { break }
         }
         return path
+    }
+
+    private static func isCompletePath(_ records: [CertificateRecord]) -> Bool {
+        guard let last = records.last else { return false }
+        return namesMatch(last.subject, last.issuer)
+    }
+
+    /// Subject/issuer names are compared semantically for display fallback.
+    /// Some certificates encode the same DN with different ASN.1 string tags;
+    /// the parser preserves those raw values, so strict model equality would
+    /// incorrectly break an otherwise usable supplied chain.
+    private static func namesMatch(
+        _ lhs: DistinguishedName?, _ rhs: DistinguishedName?
+    ) -> Bool {
+        guard let lhs, let rhs else { return false }
+        return lhs == rhs || lhs.displayValue == rhs.displayValue
     }
 
     /// Security reports not-yet-valid certificates with the same OSStatus as
@@ -232,8 +256,8 @@ public struct StandardTrustEvaluator: TrustEvaluating {
             }
             return diagnostics
         }
-        let chainComplete = chain.last.flatMap { record in
-            record.subject.map { $0 == record.issuer }
+        let chainComplete = chain.last.map { record in
+            Self.namesMatch(record.subject, record.issuer)
         }
         if chainComplete == true, code == CFIndex(errSecNotTrusted) {
             diagnostics.append(Diagnostic(

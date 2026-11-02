@@ -71,6 +71,23 @@ struct InspectorStoreTests {
         #expect(store.selectedCertificate?.der == Data([1]))
     }
 
+    @Test func rootFirstPKCS7SelectsNonSelfIssuedCAAsCurrentCertificate() async throws {
+        let root = Data([1])
+        let leaf = Data([2])
+        let evaluator = RecordingEvaluator(result: .success(ChainReport()))
+        let store = InspectorStore(services: InspectorServices(
+            containerDecoder: FixedDecoder(blocks: [root, leaf]),
+            certificateParser: NamedFixtureParser(), trustEvaluator: evaluator,
+            certificateExporter: StandardCertificateExporter(), certificateViewer: StandardCertificateViewer()
+        ))
+
+        await store.open(try DocumentInput(data: Data([9])))
+
+        #expect(store.selectedCertificate?.der == leaf)
+        let requests = await evaluator.requests
+        #expect(requests.first?.selectedCertificateDER == leaf)
+    }
+
     @Test func emptyDecodedCollectionIsAnInputError() async throws {
         let store = makeStore(blocks: [], evaluator: RecordingEvaluator(result: .success(ChainReport())))
         await store.open(try DocumentInput(data: Data([9])))
@@ -180,6 +197,21 @@ private struct FixtureParser: CertificateParsing {
         // Synthetic identity fixtures only; no real parser or signature verification.
         CertificateRecord(der: der, caStatus: der == Data([2]) ? .endEntity :
             (der == Data([1]) ? .certificateAuthority : .unknown))
+    }
+}
+
+private struct NamedFixtureParser: CertificateParsing {
+    func parse(der: Data) async throws -> CertificateRecord {
+        let rootName = DistinguishedName(relativeDistinguishedNames: [], displayValue: "CN=Root")
+        if der == Data([1]) {
+            return CertificateRecord(der: der, subject: rootName, issuer: rootName, caStatus: .certificateAuthority)
+        }
+        return CertificateRecord(
+            der: der,
+            subject: DistinguishedName(relativeDistinguishedNames: [], displayValue: "CN=Leaf"),
+            issuer: rootName,
+            caStatus: .certificateAuthority
+        )
     }
 }
 

@@ -104,7 +104,7 @@ struct CertificateDetailsView: View {
                     .lineLimit(1)
             }
             .frame(width: 200, alignment: .leading)
-            Text(field.displayValue)
+            Text(displayValue(for: field))
                 .lineLimit(1)
                 .foregroundStyle(.secondary)
         }
@@ -179,7 +179,24 @@ struct CertificateDetailsView: View {
         if usesHexBlock(field), let raw = field.rawValue, !raw.isEmpty {
             return Self.hexBlock(raw)
         }
-        return field.displayValue.isEmpty ? "（无值）" : field.displayValue
+        let displayValue = displayValue(for: field)
+        return displayValue.isEmpty ? "（无值）" : displayValue
+    }
+
+    /// Keep the details tab stable even for records created by a legacy or
+    /// partial parser that retained the Date values but did not refresh the
+    /// corresponding field text.
+    private func displayValue(for field: CertificateField) -> String {
+        switch field.id {
+        case "notValidBefore":
+            return certificate?.notValidBefore.map(CertificateDateFormatting.string(from:))
+                ?? field.displayValue
+        case "notValidAfter":
+            return certificate?.notValidAfter.map(CertificateDateFormatting.string(from:))
+                ?? field.displayValue
+        default:
+            return field.displayValue
+        }
     }
 
     private func itemLines(

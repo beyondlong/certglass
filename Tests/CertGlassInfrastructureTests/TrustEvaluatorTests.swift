@@ -5,6 +5,7 @@ import Security
 import Testing
 
 struct TrustEvaluatorTests {
+
     // 2026-11-15T00:00:00Z — inside the trust fixture validity (2026-10-29 → 2036),
     // after the expired fixture and before the future fixture. Time stays fixed per test policy.
     private let fixedTime = Date(timeIntervalSince1970: 1_794_700_800)
@@ -60,6 +61,28 @@ struct TrustEvaluatorTests {
             systemRecords: [leaf], suppliedRecords: [leaf, root, intermediate]
         )
         #expect(preferred.map(\.id) == [leaf.id, intermediate.id, root.id])
+    }
+
+    @Test func suppliedPathMatchesNamesWithDifferentASN1StringEncoding() {
+        let subject = DistinguishedName(
+            relativeDistinguishedNames: [[NameAttribute(
+                oid: "2.5.4.3", value: "Root", rawDER: Data([0x0C, 0x04, 0x52, 0x6F, 0x6F, 0x74])
+            )]], displayValue: "CN=Root"
+        )
+        let issuer = DistinguishedName(
+            relativeDistinguishedNames: [[NameAttribute(
+                oid: "2.5.4.3", value: "Root", rawDER: Data([0x13, 0x04, 0x52, 0x6F, 0x6F, 0x74])
+            )]], displayValue: "CN=Root"
+        )
+        let root = CertificateRecord(der: Data([0x12]), subject: subject, issuer: issuer)
+        let leaf = CertificateRecord(
+            der: Data([0x11]), subject: DistinguishedName(
+                relativeDistinguishedNames: [], displayValue: "CN=Leaf"
+            ), issuer: subject
+        )
+
+        let path = StandardTrustEvaluator.suppliedPath(selected: leaf, candidates: [root, leaf])
+        #expect(path.map(\.id) == [leaf.id, root.id])
     }
 
     @Test func completeChainWithIsolatedAnchorIsTrusted() async throws {

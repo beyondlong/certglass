@@ -98,7 +98,18 @@ public final class InspectorStore: ObservableObject {
             for record in added { fileIDByCertificateID[record.id] = file.id }
             isLoadingDocument = false
 
-            guard let selected = added.first(where: { $0.caStatus == .endEntity }) ?? added.first else { return }
+            // Some CA-issued SM2 certificates used as the inspected leaf also
+            // declare CA=true, so CA status alone cannot identify the leaf.
+            // Prefer a non-self-issued certificate before falling back to the
+            // first decoded item; this keeps a root-first PKCS#7 in the right
+            // inspection context without changing the supplied certificate set.
+            let selected = added.first(where: { $0.caStatus == .endEntity })
+                ?? added.first(where: { record in
+                    guard let subject = record.subject, let issuer = record.issuer else { return false }
+                    return subject.displayValue != issuer.displayValue
+                })
+                ?? added.first
+            guard let selected else { return }
             selectedCertificateID = selected.id
             await evaluate(selected, operation: operation)
         } catch is CancellationError {
